@@ -1,0 +1,11 @@
+# Use the official lightweight Node.js image.
+FROM node:20-slim
+
+# Create and change to the app directory.
+WORKDIR /usr/src/app
+
+# Copy ONLY the script to the container image (no package.json needed anymore)
+COPY seedMassiveData.js ./
+
+# Run the web service on container startup.
+ENTRYPOINT ["node", "seedMassiveData.js"]

@@ -1,0 +1,11 @@
+{
+  "name": "tomodachi-seed-data",
+  "version": "1.0.0",
+  "description": "Cloud Run Job to seed Elasticsearch with raw data",
+  "main": "seedMassiveData.js",
+  "type": "module",
+  "scripts": {
+    "start": "node seedMassiveData.js"
+  },
+  "dependencies": {}
+}
