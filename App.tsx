@@ -36,27 +36,33 @@ const App: React.FC = () => {
       await initializeAgentConfig();
 
       if (hasAgentId()) {
-        // 🚀 NEW ARCHITECTURE: Fetch matches via the GCP Agent + Elastic MCP Server
-        console.log("Fetching matches via GCP Agent Builder & MCP...");
-        let sessionId = agentSessionId;
-        if (!sessionId) {
-            sessionId = await createAgentSession(profile.email || 'default');
-            setAgentSessionId(sessionId);
+        try {
+          // 🚀 NEW ARCHITECTURE: Fetch matches via the GCP Agent + Elastic MCP Server
+          console.log("Fetching matches via GCP Agent Builder & MCP...");
+          let sessionId = agentSessionId;
+          if (!sessionId) {
+              sessionId = await createAgentSession(profile.email || 'default');
+              setAgentSessionId(sessionId);
+          }
+          const matches = await getMatchesViaAgent(profile, sessionId);
+          setCompanions(matches.companions || []);
+          setEvents(matches.events || []);
+          setAdminError('');
+          return;
+        } catch (agentError: any) {
+          console.warn('Agent Builder path failed, falling back to Elastic search.', agentError);
+          setAgentSessionId(null);
         }
-        const matches = await getMatchesViaAgent(profile, sessionId);
-        setCompanions(matches.companions || []);
-        setEvents(matches.events || []);
-      } else {
-        // 🚀 OLD ARCHITECTURE: Fetch matches directly from Elasticsearch
-        console.log("Fetching matches directly from Elasticsearch...");
-        const [fetchedCompanions, fetchedEvents] = await Promise.all([
-          searchCompanions(profile),
-          searchEvents(profile)
-        ]);
-        setCompanions(fetchedCompanions);
-        setEvents(fetchedEvents);
       }
-      
+
+      // 🚀 OLD ARCHITECTURE: Fetch matches directly from Elasticsearch
+      console.log("Fetching matches directly from Elasticsearch...");
+      const [fetchedCompanions, fetchedEvents] = await Promise.all([
+        searchCompanions(profile),
+        searchEvents(profile)
+      ]);
+      setCompanions(fetchedCompanions);
+      setEvents(fetchedEvents);
       setAdminError('');
     } catch (error: any) {
       console.error("Search Error:", error);

@@ -8,14 +8,16 @@ const getInjectedEnv = (baseKey: string) => {
     try {
         if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
             const env = (import.meta as any).env;
-            if (env[baseKey]) return env[baseKey];
-            if (env[`VITE_${baseKey}`]) return env[`VITE_${baseKey}`];
+            if (env[baseKey]) return String(env[baseKey]).trim();
+            if (env[`VITE_${baseKey}`]) return String(env[`VITE_${baseKey}`]).trim();
+            if (env[`REACT_APP_${baseKey}`]) return String(env[`REACT_APP_${baseKey}`]).trim();
         }
     } catch (e) {}
     try {
         if (typeof process !== 'undefined' && process.env) {
-            if (process.env[baseKey]) return process.env[baseKey];
-            if (process.env[`REACT_APP_${baseKey}`]) return process.env[`REACT_APP_${baseKey}`];
+            if (process.env[baseKey]) return String(process.env[baseKey]).trim();
+            if (process.env[`VITE_${baseKey}`]) return String(process.env[`VITE_${baseKey}`]).trim();
+            if (process.env[`REACT_APP_${baseKey}`]) return String(process.env[`REACT_APP_${baseKey}`]).trim();
         }
     } catch (e) {}
     return "";
@@ -66,7 +68,15 @@ export const initializeAgentConfig = async () => {
 };
 
 export const hasAgentId = (): boolean => {
-    return Boolean(ENV_AGENT_ID);
+    if (!ENV_AGENT_ID) return false;
+
+    try {
+        parseAgentId(ENV_AGENT_ID);
+        return true;
+    } catch (e) {
+        console.warn('AGENT_ID is not a valid Reasoning Engine resource path; falling back to the standard search path.', e);
+        return false;
+    }
 };
 
 const parseAgentId = (agentId: string) => {
