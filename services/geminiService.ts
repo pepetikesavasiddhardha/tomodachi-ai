@@ -7,15 +7,19 @@ let chatSession: Chat | null = null;
 
 const getGeminiApiKey = (): string => {
   try {
-    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-      const env = (import.meta as any).env as Record<string, string | undefined>;
-      return env.VITE_GEMINI_API_KEY || env.VITE_API_KEY || env.GEMINI_API_KEY || env.API_KEY || '';
-    }
-  } catch (e) {
-    console.warn('Unable to read Vite env for Gemini API key.', e);
-  }
+    const viteEnv = (typeof import.meta !== 'undefined' && (import.meta as any).env) ? (import.meta as any).env as Record<string, string | undefined> : {};
 
-  return '';
+    return (
+      viteEnv.VITE_GEMINI_API_KEY ||
+      viteEnv.VITE_API_KEY ||
+      viteEnv.GEMINI_API_KEY ||
+      viteEnv.API_KEY ||
+      (typeof process !== 'undefined' && (process as any).env ? ((process as any).env.GEMINI_API_KEY || (process as any).env.API_KEY || '') : '')
+    );
+  } catch (e) {
+    console.warn('Unable to read Gemini API key from the current env.', e);
+    return '';
+  }
 };
 
 const getAI = () => {
