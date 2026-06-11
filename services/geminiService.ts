@@ -5,10 +5,30 @@ import { UserProfile } from '../types';
 let aiInstance: GoogleGenAI | null = null;
 let chatSession: Chat | null = null;
 
+const getGeminiApiKey = (): string => {
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+      const env = (import.meta as any).env as Record<string, string | undefined>;
+      return env.VITE_GEMINI_API_KEY || env.VITE_API_KEY || env.GEMINI_API_KEY || env.API_KEY || '';
+    }
+  } catch (e) {
+    console.warn('Unable to read Vite env for Gemini API key.', e);
+  }
+
+  return '';
+};
+
 const getAI = () => {
   if (!aiInstance) {
-    aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY, vertexai: true });
+    const apiKey = getGeminiApiKey();
+
+    if (!apiKey) {
+      throw new Error('Missing Gemini API key. Add VITE_GEMINI_API_KEY to Netlify or your local .env file.');
+    }
+
+    aiInstance = new GoogleGenAI({ apiKey, vertexai: false });
   }
+
   return aiInstance;
 };
 
@@ -91,7 +111,7 @@ export const extractUserProfile = async (chatHistoryText: string): Promise<UserP
         
         return {
             summary: summaryMatch ? summaryMatch[1].trim() : "A senior looking for companionship.",
-            interests: interestsMatch ? interestsMatch[1].split(',').map(i => i.trim()) : []
+            interests: interestsMatch ? interestsMatch[1].split(',').map((i: string) => i.trim()) : []
         };
     } catch (e) {
         console.error("Failed to extract profile", e);
