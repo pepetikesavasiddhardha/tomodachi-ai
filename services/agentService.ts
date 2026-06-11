@@ -22,9 +22,10 @@ const getInjectedEnv = (baseKey: string) => {
 };
 
 let ENV_AGENT_ID = getInjectedEnv('AGENT_ID');
+let ENV_GCP_TOKEN = getInjectedEnv('GCP_TOKEN'); // Added for authentication
 
 export const initializeAgentConfig = async () => {
-    if (ENV_AGENT_ID) return;
+    if (ENV_AGENT_ID && ENV_GCP_TOKEN) return;
     
     try {
         const paths = ['./env.txt', 'env.txt', '/env.txt', './.env', '.env', '/.env'];
@@ -45,6 +46,9 @@ export const initializeAgentConfig = async () => {
                                 }
                                 if (key === 'AGENT_ID' || key === 'VITE_AGENT_ID' || key === 'REACT_APP_AGENT_ID') {
                                     ENV_AGENT_ID = val;
+                                }
+                                if (key === 'GCP_TOKEN' || key === 'VITE_GCP_TOKEN' || key === 'REACT_APP_GCP_TOKEN') {
+                                    ENV_GCP_TOKEN = val;
                                 }
                             }
                         });
@@ -76,6 +80,17 @@ const parseAgentId = (agentId: string) => {
     };
 };
 
+// Helper to get headers with authentication
+const getAuthHeaders = () => {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+    };
+    if (ENV_GCP_TOKEN) {
+        headers['Authorization'] = `Bearer ${ENV_GCP_TOKEN}`;
+    }
+    return headers;
+};
+
 // Step 1: Create a Session
 export const createAgentSession = async (userId: string): Promise<string> => {
     if (!ENV_AGENT_ID) throw new Error("AGENT_ID is not configured.");
@@ -85,7 +100,7 @@ export const createAgentSession = async (userId: string): Promise<string> => {
     
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
             input: { user_id: userId },
             classMethod: 'async_create_session'
@@ -108,7 +123,7 @@ export const streamAgentMessage = async function* (sessionId: string, userId: st
 
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
             input: { user_id: userId, session_id: sessionId, message: message },
             classMethod: 'async_stream_query'
@@ -142,8 +157,10 @@ export const streamAgentMessage = async function* (sessionId: string, userId: st
 
 // Step 3: Fetch Matches via Agent (Using MCP Tools)
 export const getMatchesViaAgent = async (profile: UserProfile, sessionId: string): Promise<{ companions: Companion[], events: Event[] }> => {
-    // We send a hidden system command to the agent, asking it to use its MCP tools to fetch data and return raw JSON.
-    const prompt = `SYSTEM COMMAND: Use your tools to search for companions and events matching these interests: ${profile.interests.join(', ')} in ${profile.location}. Return ONLY a raw JSON object with no markdown formatting. Format: {"companions": [...], "events": [...]}`;
+    // We send a highly explicit system command to force the agent to use the tools and return JSON.
+    const prompt = `SYSTEM COMMAND: You MUST use the 'search_companions' and 'search_events' tools to find matches for a user who lives in ${profile.location || 'Tokyo'} and likes ${profile.interests.join(', ')}. 
+    After using the tools, return ONLY a raw JSON object containing the results. Do not use markdown formatting. Do not include conversational text.
+    Format exactly like this: {"companions": [...], "events": [...]}`;
     
     let fullResponse = "";
     for await (const chunk of streamAgentMessage(sessionId, profile.email || 'default', prompt)) {
@@ -153,7 +170,13 @@ export const getMatchesViaAgent = async (profile: UserProfile, sessionId: string
     try {
         // Clean up potential markdown code blocks the LLM might add
         const cleaned = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+        
+        // Ensure arrays exist even if LLM hallucinates
+        return {
+            companions: parsed.companions || [],
+            events: parsed.events || []
+        };
     } catch (e) {
         console.error("Failed to parse agent JSON response:", fullResponse);
         throw new Error("Agent did not return valid JSON matches.");

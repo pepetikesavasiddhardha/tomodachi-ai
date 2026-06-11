@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, ArrowRight } from 'lucide-react';
+import { Send, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import { Message, UserProfile } from '../types';
 import { sendMessageToAgent as sendGeminiMessage, initChat, analyzeChatForProfile, extractUserProfile } from '../services/geminiService';
 import { hasAgentId, createAgentSession, streamAgentMessage } from '../services/agentService';
@@ -19,6 +19,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, exist
   const [isExtracting, setIsExtracting] = useState(false);
   const [useAgent, setUseAgent] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(existingSessionId);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasInitialized = useRef(false);
@@ -46,8 +47,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, exist
                       onSessionCreated(sid);
                   }
                   handleSend("Hello", sid, true);
-              } catch (e) {
+              } catch (e: any) {
                   console.error("Failed to init Agent session, falling back to Gemini", e);
+                  if (e.message.includes('401') || e.message.includes('Unauthorized')) {
+                      setErrorMsg("Agent Authentication Failed: You must provide a VITE_GCP_TOKEN in Netlify to call the Agent.");
+                  }
                   setUseAgent(false);
                   initChat();
                   handleSend("Hello", null, false);
@@ -79,6 +83,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, exist
     }
     
     setIsLoading(true);
+    setErrorMsg(null);
     
     const activeSessionId = currentSessionId !== undefined ? currentSessionId : sessionId;
     const activeUseAgent = isAgent !== undefined ? isAgent : useAgent;
@@ -123,8 +128,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, exist
           setIsLoading(false);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error", error);
+      setErrorMsg(`Chat Error: ${error.message || "Failed to connect to AI."}`);
       setIsLoading(false);
     }
   };
@@ -157,6 +163,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ userProfile, exist
             </span>
         )}
       </div>
+
+      {errorMsg && (
+        <div className="bg-red-50 border-b border-red-200 p-4 flex items-start">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+            <p className="text-sm text-red-800 font-medium">{errorMsg}</p>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-warm-50">
         {messages.filter(m => m.text !== "Hello").map((msg) => (
